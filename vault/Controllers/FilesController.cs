@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using vault.Dtos;
 using vault.Models;
 
 namespace vault.Controllers
@@ -55,7 +56,7 @@ namespace vault.Controllers
         // POST: api/Files
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Models.File>> PostFile(Models.File @file)
+        public async Task<ActionResult<Models.File>> PostFile(UserFilesDTO file)
         {
             var userIdClaim = User.FindFirst("UserId");
 
@@ -64,12 +65,22 @@ namespace vault.Controllers
                 return Unauthorized();
             }
 
-            @file.UserId = userId;
+            if (file == null || string.IsNullOrEmpty(file.Name) || file.Payload == null)
+            {
+                return BadRequest("Invalid file data");
+            }
 
-            _context.Files.Add(@file);
+            Models.File newFile = new Models.File
+            {
+                Name = file.Name,
+                Payload = file.Payload,
+                UserId = userId
+            };
+
+            _context.Files.Add(newFile);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetFile", new { id = @file.Id }, @file);
+            return CreatedAtAction("GetFile", new { id = newFile.Id }, newFile);
         }
 
         // DELETE: api/Files/5

@@ -97,9 +97,8 @@ namespace vault.Controllers
             }
 
             var userKey = Convert.FromBase64String(userKeyClaim.Value);
-
-            var iv = SecurityMagician.StringToIV(credential.App);
-            var encryptedPassword = SecurityMagician.EncryptPassword(credential.Password, iv, userKey);
+            
+            var encryptedPassword = SecurityMagician.EncryptPassword(credential.Password, credential.App, userKeyClaim.Value);
 
             var newCredential = new Credential
             {

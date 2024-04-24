@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using vault.Dtos;
+using vault.Helpers;
 using vault.Models;
 
 namespace vault.Controllers
@@ -29,7 +30,22 @@ namespace vault.Controllers
                 return Unauthorized();
             }
 
-            return await _context.Files.Where(x => x.UserId == userId).ToListAsync();
+            var userKeyClaim = User.FindFirst("Key");
+            if (userKeyClaim == null)
+            {
+                return Unauthorized();
+            }
+
+            var files = await _context.Files.Where(x => x.UserId == userId).ToListAsync();
+
+            foreach (var file in files)
+            {
+                file.Payload = Convert.FromBase64String(
+                    SecurityMagician.DecryptPassword(Convert.ToBase64String(file.Payload), file.Name,
+                        userKeyClaim.Value));
+            }
+
+            return files;
         }
 
         // GET: api/Files/5
@@ -43,12 +59,22 @@ namespace vault.Controllers
                 return Unauthorized();
             }
 
+            var userKeyClaim = User.FindFirst("Key");
+            if (userKeyClaim == null)
+            {
+                return Unauthorized();
+            }
+
             var @file = await _context.Files.FindAsync(id);
 
             if (@file == null || @file.UserId != userId)
             {
                 return NotFound();
             }
+
+            @file.Payload =
+                Convert.FromBase64String(SecurityMagician.DecryptPassword(Convert.ToBase64String(@file.Payload),
+                    @file.Name, userKeyClaim.Value));
 
             return @file;
         }
@@ -59,28 +85,36 @@ namespace vault.Controllers
         public async Task<ActionResult<Models.File>> PostFile(UserFilesDTO file)
         {
             var userIdClaim = User.FindFirst("UserId");
-
             if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
             {
                 return Unauthorized();
             }
 
-            if (file == null || string.IsNullOrEmpty(file.Name) || file.Payload == null)
+            var userKeyClaim = User.FindFirst("Key");
+            if (userKeyClaim == null)
+            {
+                return Unauthorized();
+            }
+
+            if (string.IsNullOrEmpty(file.Name) || file.Payload == null)
             {
                 return BadRequest("Invalid file data");
             }
 
+            var encryptedPayload =
+                SecurityMagician.EncryptPassword(Convert.ToBase64String(file.Payload), file.Name, userKeyClaim.Value);
+
             Models.File newFile = new Models.File
             {
                 Name = file.Name,
-                Payload = file.Payload,
+                Payload = Convert.FromBase64String(encryptedPayload),
                 UserId = userId
             };
 
             _context.Files.Add(newFile);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetFile", new { id = newFile.Id }, newFile);
+            return CreatedAtAction("GetFile", new { id = newFile.Id }, file);
         }
 
         // DELETE: api/Files/5

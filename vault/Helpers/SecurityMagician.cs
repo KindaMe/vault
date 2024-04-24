@@ -18,13 +18,13 @@ public class SecurityMagician
         return hashed;
     }
 
-    public static string EncryptPassword(string password, byte[] iv, byte[] key)
+    public static string EncryptPassword(string password, string iv, string key)
     {
         using var aes = Aes.Create();
-        aes.Key = key;
+        aes.Key = Convert.FromBase64String(key);
 
         using var sha256 = SHA256.Create();
-        aes.IV = iv;
+        aes.IV = StringToIV(iv);
 
         var encryptor = aes.CreateEncryptor(aes.Key, aes.IV);
 

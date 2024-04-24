@@ -70,17 +70,20 @@ namespace vault.Controllers
                 return Conflict("Email already in use");
             }
 
+            var key = SecurityMagician.GenerateEncryptionKey();
+            var keyString = Convert.ToBase64String(key);
+
             User newUser = new User
             {
                 Email = user.Email,
-                Password = Hasher.HashPassword(user.Password, user.Email)
+                Password = SecurityMagician.HashPassword(user.Password, user.Email)
             };
 
             _context.Users.Add(newUser);
 
             await _context.SaveChangesAsync();
 
-            return Created();
+            return Created("", new { Key = keyString });
         }
     }
 }

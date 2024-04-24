@@ -25,14 +25,15 @@ namespace vault.Controllers
         [HttpPost]
         public IActionResult Authenticate([FromBody] UserCredentialsDTO userCredentials)
         {
-            if (string.IsNullOrEmpty(userCredentials.Email) || string.IsNullOrEmpty(userCredentials.Password))
+            if (string.IsNullOrEmpty(userCredentials.Email) || string.IsNullOrEmpty(userCredentials.Password) ||
+                userCredentials.Key.IsNullOrEmpty())
             {
                 return BadRequest("Invalid credentials");
             }
 
             var matchingUser = _context.Users.FirstOrDefault(x =>
                 x.Email == userCredentials.Email &&
-                x.Password == Hasher.HashPassword(userCredentials.Password, userCredentials.Email));
+                x.Password == SecurityMagician.HashPassword(userCredentials.Password, userCredentials.Email));
 
             if (matchingUser == null)
             {
@@ -47,6 +48,7 @@ namespace vault.Controllers
                 Subject = new ClaimsIdentity(new Claim[]
                 {
                     new("UserId", matchingUser.Id.ToString()),
+                    new("Key", userCredentials.Key)
                 }),
                 Expires = DateTime.UtcNow.AddHours(1), // Token expiration time
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key),

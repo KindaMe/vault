@@ -4,6 +4,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using vault.Dtos;
+using vault.Helpers;
 using vault.Models;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
@@ -24,12 +25,14 @@ namespace vault.Controllers
         [HttpPost]
         public IActionResult Authenticate([FromBody] UserCredentialsDTO userCredentials)
         {
-            if (userCredentials == null || string.IsNullOrEmpty(userCredentials.Email) || string.IsNullOrEmpty(userCredentials.Password))
+            if (string.IsNullOrEmpty(userCredentials.Email) || string.IsNullOrEmpty(userCredentials.Password))
             {
                 return BadRequest("Invalid credentials");
             }
 
-            var matchingUser = _context.Users.FirstOrDefault(x => x.Email == userCredentials.Email && x.Password == userCredentials.Password);
+            var matchingUser = _context.Users.FirstOrDefault(x =>
+                x.Email == userCredentials.Email &&
+                x.Password == Hasher.HashPassword(userCredentials.Password, userCredentials.Email));
 
             if (matchingUser == null)
             {
@@ -43,10 +46,11 @@ namespace vault.Controllers
             {
                 Subject = new ClaimsIdentity(new Claim[]
                 {
-                    new Claim("UserId", matchingUser.Id.ToString()),
+                    new("UserId", matchingUser.Id.ToString()),
                 }),
                 Expires = DateTime.UtcNow.AddHours(1), // Token expiration time
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key),
+                    SecurityAlgorithms.HmacSha256Signature)
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);

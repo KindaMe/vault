@@ -2,8 +2,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using vault.Dtos;
 using vault.Models;
+using vault.Helpers;
 
 namespace vault.Controllers
 {
@@ -50,10 +52,12 @@ namespace vault.Controllers
         // POST: api/Users
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<User>> PostUser(User user)
+        public async Task<ActionResult<User>> PostUser(UserCredentialsDTO user)
         {
-            user.Email = user.Email.Trim();
-            user.Password = user.Password.Trim();
+            if (user.Email.IsNullOrEmpty() || user.Password.IsNullOrEmpty())
+            {
+                return BadRequest("Invalid credentials");
+            }
 
             if (!_emailRegex.IsMatch(user.Email))
             {
@@ -66,140 +70,17 @@ namespace vault.Controllers
                 return Conflict("Email already in use");
             }
 
-            _context.Users.Add(user);
+            User newUser = new User
+            {
+                Email = user.Email,
+                Password = Hasher.HashPassword(user.Password, user.Email)
+            };
+
+            _context.Users.Add(newUser);
 
             await _context.SaveChangesAsync();
 
             return Created();
-        }
-
-        // PUT: api/Users
-        [Authorize]
-        [HttpPut("Email")]
-        public async Task<IActionResult> PutEmail([FromBody] UserUpdatedDetailsDTO userDetails)
-        {
-            var userIdClaim = User.FindFirst("UserId");
-
-            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
-            {
-                return Unauthorized();
-            }
-
-            if (userDetails.NewEmail == null)
-            {
-                return BadRequest("Email needs to be provided");
-            }
-
-            var trimmedEmail = userDetails.NewEmail.Trim();
-
-            if (!_emailRegex.IsMatch(trimmedEmail))
-            {
-                return BadRequest(new { message = "Email is not in correct format" });
-            }
-
-            bool emailExists = await _context.Users.AnyAsync(u => u.Email == trimmedEmail);
-            if (emailExists)
-            {
-                return Conflict("Email already in use");
-            }
-
-            var userToUpdate = await _context.Users.FindAsync(userId);
-
-            if (userToUpdate == null || userToUpdate.IsActive != 1)
-            {
-                return NotFound("User not found");
-            }
-
-            if (userToUpdate.Password != userDetails.ConfirmPassword)
-            {
-                return BadRequest("Passwords do not match");
-            }
-
-            if (userToUpdate.Email == trimmedEmail)
-            {
-                return BadRequest("New and old emails are the same");
-            }
-
-            userToUpdate.Email = trimmedEmail;
-
-            await _context.SaveChangesAsync();
-
-            return Ok();
-        }
-
-        // PUT: api/Users
-        [Authorize]
-        [HttpPut("Password")]
-        public async Task<IActionResult> PutPassword([FromBody] UserUpdatedDetailsDTO userDetails)
-        {
-            var userIdClaim = User.FindFirst("UserId");
-
-            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
-            {
-                return Unauthorized();
-            }
-
-            if (userDetails.NewPassword == null)
-            {
-                return BadRequest("New password must be provided");
-            }
-
-            var trimmedPassword = userDetails.NewPassword.Trim();
-
-            var userToUpdate = await _context.Users.FindAsync(userId);
-
-            if (userToUpdate == null || userToUpdate.IsActive != 1)
-            {
-                return NotFound("User not found");
-            }
-
-            if (userToUpdate.Password != userDetails.ConfirmPassword)
-            {
-                return BadRequest("Passwords do not match");
-            }
-
-            if (userToUpdate.Password == trimmedPassword)
-            {
-                return BadRequest("New and old passwords are the same");
-            }
-
-            userToUpdate.Password = trimmedPassword;
-
-            await _context.SaveChangesAsync();
-
-            return Ok();
-        }
-
-        // DELETE: api/Users/5
-        [Authorize]
-        [HttpDelete]
-        public async Task<IActionResult> DeleteUser([FromBody] UserUpdatedDetailsDTO userDetails)
-        {
-            var userIdClaim = User.FindFirst("UserId");
-
-            if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
-            {
-                return Unauthorized();
-            }
-
-            var user = await _context.Users.FindAsync(userId);
-            if (user == null || user.IsActive != 1)
-            {
-                return NotFound("User not found");
-            }
-
-            if (user.Password != userDetails.ConfirmPassword)
-            {
-                return BadRequest("Passwords do not match");
-            }
-
-            user.IsActive = 0;
-            user.Email = "deleted";
-            user.Password = "deleted";
-
-            await _context.SaveChangesAsync();
-
-            return NoContent();
         }
     }
 }

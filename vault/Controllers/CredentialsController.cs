@@ -63,7 +63,7 @@ namespace vault.Controllers
             {
                 return Unauthorized();
             }
-            
+
             var credential = await _context.Credentials.FindAsync(id);
 
             if (credential == null || credential.UserId != userId)
@@ -76,7 +76,6 @@ namespace vault.Controllers
 
             return credential;
         }
-
 
         // POST: api/Credentials
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
@@ -96,9 +95,9 @@ namespace vault.Controllers
                 return Unauthorized();
             }
 
-            var userKey = Convert.FromBase64String(userKeyClaim.Value);
-            
-            var encryptedPassword = SecurityMagician.EncryptPassword(credential.Password, credential.App, userKeyClaim.Value);
+
+            var encryptedPassword =
+                SecurityMagician.EncryptPassword(credential.Password, credential.App, userKeyClaim.Value);
 
             var newCredential = new Credential
             {
@@ -111,8 +110,17 @@ namespace vault.Controllers
 
             _context.Credentials.Add(newCredential);
             await _context.SaveChangesAsync();
+            
+            var returnCredential = new 
+            {
+                newCredential.Id,
+                newCredential.Login,
+                credential.Password,
+                newCredential.App,
+                newCredential.Link,
+            };
 
-            return CreatedAtAction("GetCredential", new { id = newCredential.Id }, credential);
+            return CreatedAtAction("GetCredential", new { id = newCredential.Id }, returnCredential);
         }
 
         // DELETE: api/Credentials/5

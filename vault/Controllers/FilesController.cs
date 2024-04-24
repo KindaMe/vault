@@ -113,8 +113,15 @@ namespace vault.Controllers
 
             _context.Files.Add(newFile);
             await _context.SaveChangesAsync();
+            
+            var returnFile = new 
+            {
+                newFile.Id,
+                newFile.Name,
+                file.Payload
+            };
 
-            return CreatedAtAction("GetFile", new { id = newFile.Id }, file);
+            return CreatedAtAction("GetFile", new { id = newFile.Id }, returnFile);
         }
 
         // DELETE: api/Files/5
